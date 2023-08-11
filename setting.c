@@ -47,9 +47,9 @@ s32 read_setting(modbus_t *sensor);
 s32 write_setting(modbus_t *sensor);
 
 //函数区
-s32 main(int argc, char const *argv[])
+s32 main(s32 argc, const s8 *argv[])
 {
-	s32 i;
+	u32 i;
 	modbus_t *sensor;
 	s8 command = 'n';
 	s32 weight;
@@ -239,6 +239,8 @@ modbus_t *open_device()
 	}
 
 	modbus_set_slave(sensor, DEVICE_ADDR);//设置从设备地址
+
+	usleep(100000);//等待设备准备好
 
 	return sensor;
 }

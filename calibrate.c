@@ -26,12 +26,12 @@ typedef long long s64;
 modbus_t *open_device();
 
 //函数区
-int main(int argc, char const *argv[])
+s32 main(s32 argc, const s8 *argv[])
 {
 	modbus_t *sensor;
 	s32 weight;
 	s8 command = 'a';
-	s32 i;
+	u32 i;
 	u16 reg_buf;
 	u16 tab_reg[2];
 
@@ -142,6 +142,8 @@ modbus_t *open_device()
 	}
 
 	modbus_set_slave(sensor, DEVICE_ADDR);//设置从设备地址
+
+	usleep(100000);//等待设备准备好
 
 	return sensor;
 }

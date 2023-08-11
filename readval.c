@@ -4,6 +4,7 @@
 #include <errno.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <string.h>
 
 //宏定义区
 #define DEVICE_ADDR 1
@@ -25,19 +26,47 @@ typedef long long s64;
 modbus_t *open_device();
 
 //函数区
-int main()
+int main(int argc, char const *argv[])
 {
 	u16 tab_reg[2];
 	s32 weight;
 	modbus_t *sensor;
+	u32 counter = 0xFFFFFFFF;
+	u32 i;
+
+	for (i = 1; i < argc; i++) {
+		if (strcmp(argv[i], "-c") == 0) {
+			if (i != argc - 1) {
+				counter = atoi(argv[i + 1]);
+				i = i + 1;
+				continue;
+			}
+		} else if (strcmp(argv[i], "-h") == 0) {
+			printf(
+			"CMCU-06 modbus force sensor readval\n"
+			"\n"
+			"Usage:\treadval <-c> <count>\n"
+			"\n"
+			"-h,--help\tShow this help page\n"
+			"\n"
+			"-c\t\tspecify count of output\n"
+			"\n"
+			"default: count = 0xFFFFFFFF\n"
+			"\n"
+			"Author: msdos03 <https://github.com/msdos03>\n"
+			);
+			exit(EXIT_FAILURE);
+		}
+	}
 
 	sensor = open_device();
 
-	while(1) {
+	while(counter > 0) {
 		modbus_read_registers(sensor, 0, 2, tab_reg);
 		weight = tab_reg[0] | (tab_reg[1] << 16);
 		printf("weight: %dg\n", weight);
 		usleep(100000);//延迟100ms
+		counter--;
 	}
 
 	return 0;
@@ -61,6 +90,8 @@ modbus_t *open_device()
 	}
 
 	modbus_set_slave(sensor, DEVICE_ADDR);//设置从设备地址
+
+	usleep(100000);//等待设备准备好
 
 	return sensor;
 }
