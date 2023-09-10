@@ -30,8 +30,12 @@ int main()
 	struct save_unit unit;
 
 	fd = open(RECORD_FILE, O_RDONLY);
+	if (fd < 0) {
+		perror(RECORD_FILE);
+		return -1;
+	}
 
-	while (read(fd, &unit, sizeof(struct save_unit))) {
+	while (read(fd, &unit, sizeof(struct save_unit)) > 0) {
 		printf("time(ms): %u\tweight: %d\n", unit.time_ms, unit.weight);
 	}
 

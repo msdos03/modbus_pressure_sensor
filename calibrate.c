@@ -98,7 +98,7 @@ s32 main(s32 argc, const s8 *argv[])
 	if (command == 'w' || command == 'a') {
 		do {
 			printf("please enter the weight you put on the sensor (20-65535):\n");
-			scanf("%u", &reg_buf);
+			scanf("%hu", &reg_buf);
 		} while (reg_buf < 20);
 		modbus_write_register(sensor, 0x06, reg_buf);//往砝码值寄存器写入用户输入的值
 		sleep(1);//等待设备准备好 1000ms
