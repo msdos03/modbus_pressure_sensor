@@ -9,6 +9,7 @@
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
+#include <signal.h>
 
 //宏定义区
 #define DEVICE_ADDR 1
@@ -27,6 +28,11 @@ typedef short s16;
 typedef int s32;
 typedef long long s64;
 
+//全局变量区
+s32 fd;
+modbus_t *sensor;
+
+//结构体定义区
 struct save_unit {
 	u32 time_ms;
 	s32 weight;
@@ -37,14 +43,20 @@ modbus_t *open_device();
 int save_data(int fd, struct save_unit *unit);
 
 //函数区
+void signal_handler(int signal_value)
+{
+	printf("recording program exit\n");
+	close(fd);
+	modbus_free(sensor);
+	exit(0);
+}
+
 int main(int argc, char const *argv[])
 {
 	u16 tab_reg[2];
-	modbus_t *sensor;
 	u32 counter = 0xFFFFFFFF;
 	u32 i;
 	u32 delay = 100000;//单位:微秒
-	s32 fd;
 	struct timespec spec;
 	struct timespec start;
 	struct save_unit unit;
@@ -95,27 +107,38 @@ int main(int argc, char const *argv[])
 
 	clock_gettime(CLOCK_MONOTONIC, &start);//获取起始时间
 
+	signal(SIGINT, signal_handler);//重定向sigint信号到signal_handler处理函数
+
 	while(counter > 0) {
 		modbus_read_registers(sensor, 0, 2, tab_reg);//获取重量
 		unit.weight = tab_reg[0] | (tab_reg[1] << 16);
 
 		clock_gettime(CLOCK_MONOTONIC, &spec);//获取时间
 
-		unit.time_ms = (spec.tv_sec - start.tv_sec) * 1000 + ((spec.tv_nsec - start.tv_nsec) / 1000000);//转化成毫秒
+		unit.time_ms = (spec.tv_sec - start.tv_sec) * 1000 + ((spec.tv_nsec - start.tv_nsec) / 1000000);//转化成毫秒，记录时间不得超过u32最大值毫秒（约为1193小时）
 
 		save_data(fd, &unit);
 
-		printf("weight: %dg\n", unit.weight);
+		printf("\ntime: %d\tweight: %dg\n", unit.time_ms, unit.weight);
 		usleep(delay);//延迟delay us
 		counter--;
 	}
+
+	close(fd);
+	modbus_free(sensor);
 
 	return 0;
 }
 
 int save_data(int fd, struct save_unit *unit)
 {
-	printf("%d\t", unit->time_ms);
+	int i;
+
+	if(unit->weight > 0) {
+		for(i = 0; i <= (unit->weight)>>7; i++) {	//质量除以128舍弃余数，打印这个数量的'#'来可视化数据
+			putchar('#');
+		}
+	}
 
 	write(fd, unit, sizeof(struct save_unit));
 
