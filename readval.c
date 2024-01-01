@@ -45,7 +45,7 @@ int save_data(int fd, struct save_unit *unit);
 //函数区
 void signal_handler(int signal_value)
 {
-	printf("recording program exit\n");
+	printf("\nrecording program exit\n");
 	close(fd);
 	modbus_free(sensor);
 	exit(0);
@@ -105,7 +105,7 @@ int main(int argc, char const *argv[])
 	fd = open(RECORD_FILE, O_CREAT | O_WRONLY | O_TRUNC, 0x777);
 	lseek(fd, 0, SEEK_SET);
 
-	clock_gettime(CLOCK_MONOTONIC, &start);//获取起始时间
+	clock_gettime(CLOCK_MONOTONIC_COARSE, &start);//获取起始时间
 
 	signal(SIGINT, signal_handler);//重定向sigint信号到signal_handler处理函数
 
@@ -113,13 +113,13 @@ int main(int argc, char const *argv[])
 		modbus_read_registers(sensor, 0, 2, tab_reg);//获取重量
 		unit.weight = tab_reg[0] | (tab_reg[1] << 16);
 
-		clock_gettime(CLOCK_MONOTONIC, &spec);//获取时间
+		clock_gettime(CLOCK_MONOTONIC_COARSE, &spec);//获取时间
 
 		unit.time_ms = (spec.tv_sec - start.tv_sec) * 1000 + ((spec.tv_nsec - start.tv_nsec) / 1000000);//转化成毫秒，记录时间不得超过u32最大值毫秒（约为1193小时）
 
 		save_data(fd, &unit);
 
-		printf("\ntime: %d\tweight: %dg\n", unit.time_ms, unit.weight);
+		printf("\ntime: %u\tweight: %dg\n", unit.time_ms, unit.weight);
 		usleep(delay);//延迟delay us
 		counter--;
 	}
