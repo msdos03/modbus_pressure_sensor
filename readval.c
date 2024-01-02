@@ -31,6 +31,7 @@ typedef long long s64;
 //全局变量区
 s32 fd;
 modbus_t *sensor;
+struct timespec start_time;
 
 //结构体定义区
 struct save_unit {
@@ -40,10 +41,10 @@ struct save_unit {
 
 //函数声明区
 modbus_t *open_device();
-int save_data(int fd, struct save_unit *unit);
+void record_once(int sig);
 
 //函数区
-void signal_handler(int signal_value)
+void safe_exit(int signal_value)
 {
 	printf("\nrecording program exit\n");
 	close(fd);
@@ -53,46 +54,37 @@ void signal_handler(int signal_value)
 
 int main(int argc, char const *argv[])
 {
-	u16 tab_reg[2];
-	u32 counter = 0xFFFFFFFF;
 	u32 i;
-	u32 delay = 100000;//单位:微秒
-	struct timespec spec;
-	struct timespec start;
-	struct save_unit unit;
+	u32 delay = 100;//单位:ms
+	struct timespec delay_ts;
 
 	for (i = 1; i < argc; i++) {
-		if (strcmp(argv[i], "-c") == 0) {
-			if (i != argc - 1) {
-				counter = atoi(argv[i + 1]);
-				i = i + 1;
-				continue;
-			} else {
-				printf("-c argument cannot appear seperately\n");
-				exit(EXIT_FAILURE);
-			}
-		} else if (strcmp(argv[i], "-d") == 0) {
+		if (strcmp(argv[i], "-d") == 0) {
 			if (i != argc - 1) {
 				delay = atoi(argv[i + 1]);
+				if(delay < 40) {
+					printf("warning: delay cannot be less than 40ms, setting it to 40ms");
+					delay = 40;
+				}
 				i = i + 1;
 				continue;
 			} else {
 				printf("-d argument cannot appear seperately\n");
 				exit(EXIT_FAILURE);
 			}
-		} else if (strcmp(argv[i], "-h") == 0) {
+		} else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0) {
 			printf(
 			"CMCU-06 modbus force sensor readval\n"
 			"\n"
-			"Usage:\treadval <-c> <count>\n"
+			"Usage:\treadval <-d> <delay>\n"
 			"\n"
 			"-h,--help\tShow this help page\n"
 			"\n"
-			"-c\t\tspecify count of output\n"
+			"-d\t\tspecify read delay in ms (no less than 40ms)\n"
 			"\n"
-			"-d\t\tspecify read delay in us\n"
+			"default: delay = 100 ms\n"
 			"\n"
-			"default: count = 0xFFFFFFFF delay = 100000 us\n"
+			"To exit the program safely, press CTRL+C\n"
 			"\n"
 			"Author: msdos03 <https://github.com/msdos03>\n"
 			);
@@ -100,57 +92,79 @@ int main(int argc, char const *argv[])
 		}
 	}
 
+	delay_ts.tv_sec = delay / 1000;
+	delay_ts.tv_nsec = (delay % 1000) * 1000000;
+
 	sensor = open_device();
 
 	fd = open(RECORD_FILE, O_CREAT | O_WRONLY | O_TRUNC, 0x777);
 	lseek(fd, 0, SEEK_SET);
 
-	clock_gettime(CLOCK_MONOTONIC_COARSE, &start);//获取起始时间
+	//重定向sigint信号到safe_exit处理函数
+	struct sigaction sigact = {
+		.sa_handler = safe_exit,
+	};
+	sigaction(SIGINT, &sigact, NULL);
 
-	signal(SIGINT, signal_handler);//重定向sigint信号到signal_handler处理函数
+	//重定向sigusr1信号到record_once处理函数，来为设置定时器作准备
+	sigact.sa_handler = record_once;
+	sigaction(SIGUSR1, &sigact, NULL);
 
-	while(counter > 0) {
-		modbus_read_registers(sensor, 0, 2, tab_reg);//获取重量
-		unit.weight = tab_reg[0] | (tab_reg[1] << 16);
+	timer_t timer;
+	struct sigevent sev = {
+		.sigev_notify = SIGEV_SIGNAL,
+		.sigev_signo = SIGUSR1,
+	};
+	timer_create(CLOCK_MONOTONIC, &sev, &timer);
 
-		clock_gettime(CLOCK_MONOTONIC_COARSE, &spec);//获取时间
+	struct itimerspec its = {
+		.it_interval = delay_ts,
+		.it_value = delay_ts,
+	};
 
-		unit.time_ms = (spec.tv_sec - start.tv_sec) * 1000 + ((spec.tv_nsec - start.tv_nsec) / 1000000);//转化成毫秒，记录时间不得超过u32最大值毫秒（约为1193小时）
+	clock_gettime(CLOCK_MONOTONIC_COARSE, &start_time);//获取起始时间
+	timer_settime(timer, 0, &its, NULL);//启动定时器
 
-		save_data(fd, &unit);
-
-		printf("\ntime: %u\tweight: %dg\n", unit.time_ms, unit.weight);
-		usleep(delay);//延迟delay us
-		counter--;
+	while(1) {
+		sleep(1);
 	}
-
-	close(fd);
-	modbus_free(sensor);
 
 	return 0;
 }
 
-int save_data(int fd, struct save_unit *unit)
+void record_once(int sig)
 {
-	int i;
+	u32 i;
+	u16 tab_reg[2];
+	struct save_unit unit;
+	struct timespec spec;
 
-	if(unit->weight > 0) {
-		for(i = 0; i <= (unit->weight)>>7; i++) {	//质量除以128舍弃余数，打印这个数量的'#'来可视化数据
+	modbus_read_registers(sensor, 0, 2, tab_reg);//获取重量
+	unit.weight = tab_reg[0] | (tab_reg[1] << 16);
+
+	clock_gettime(CLOCK_MONOTONIC_COARSE, &spec);//获取时间，记录时间不得超过u32最大值毫秒（约为1193小时）
+	unit.time_ms = (spec.tv_sec - start_time.tv_sec) * 1000 + ((spec.tv_nsec - start_time.tv_nsec) / 1000000);
+
+	//将数据写入文件
+	write(fd, &unit, sizeof(struct save_unit));
+	//质量除以128舍弃余数，打印这个数量的'#'来可视化数据
+	if(unit.weight > 0) {
+		for(i = 0; i <= (unit.weight)>>7; i++) {
 			putchar('#');
 		}
 	}
 
-	write(fd, unit, sizeof(struct save_unit));
+	printf("\ntime: %u\tweight: %dg\n", unit.time_ms, unit.weight);
 
-	return 0;
+	return;
 }
 
 //打开设备函数 返回值：设备结构体指针
 modbus_t *open_device()
 {
 	modbus_t *sensor;
-
-	sensor = modbus_new_rtu(SERIAL_DEV, BAUDRATE, 'N', 8, 1);//打开modbus rtu设备
+	//打开modbus rtu设备
+	sensor = modbus_new_rtu(SERIAL_DEV, BAUDRATE, 'N', 8, 1);
 	if (sensor == NULL) {
  		fprintf(stderr, "Unable to create the libmodbus context\n");
 		exit(-1);
@@ -158,13 +172,15 @@ modbus_t *open_device()
 
 	if (modbus_connect(sensor) == -1) {
 		fprintf(stderr, "Connection failed: %s\n", modbus_strerror(errno));
-		modbus_free(sensor);//关闭modbus rtu设备
+		//关闭modbus rtu设备
+		modbus_free(sensor);
 		exit(-1);
 	}
 
-	modbus_set_slave(sensor, DEVICE_ADDR);//设置从设备地址
-
-	usleep(100000);//等待设备准备好
+	//设置从设备地址
+	modbus_set_slave(sensor, DEVICE_ADDR);
+	//等待设备准备好
+	usleep(100000);
 
 	return sensor;
 }
