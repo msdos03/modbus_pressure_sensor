@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdint.h>
 #include <modbus/modbus.h>
 #include <modbus/modbus-rtu.h>
 #include <errno.h>
@@ -18,25 +19,16 @@
 #define RECORD_FILE "record.bin"
 
 //类型定义区
-typedef unsigned char u8;
-typedef unsigned short u16;
-typedef unsigned int u32;
-typedef unsigned long long u64;
-
-typedef char s8;
-typedef short s16;
-typedef int s32;
-typedef long long s64;
 
 //全局变量区
-s32 fd;
+int fd;
 modbus_t *sensor;
 struct timespec start_time;
 
 //结构体定义区
 struct save_unit {
-	u32 time_ms;
-	s32 weight;
+	uint32_t time_ms;
+	int32_t weight;
 };
 
 //函数声明区
@@ -52,10 +44,10 @@ void safe_exit(int signal_value)
 	exit(0);
 }
 
-int main(int argc, char const *argv[])
+int main(int argc, char *argv[])
 {
-	u32 i;
-	u32 delay = 100;//单位:ms
+	uint32_t i;
+	uint32_t delay = 100;//单位:ms
 	struct timespec delay_ts;
 
 	for (i = 1; i < argc; i++) {
@@ -134,8 +126,8 @@ int main(int argc, char const *argv[])
 
 void record_once(int sig)
 {
-	u32 i;
-	u16 tab_reg[2];
+	uint32_t i;
+	uint16_t tab_reg[2];
 	struct save_unit unit;
 	struct timespec spec;
 

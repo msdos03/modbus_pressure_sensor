@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdint.h>
 #include <modbus/modbus.h>
 #include <modbus/modbus-rtu.h>
 #include <errno.h>
@@ -16,43 +17,34 @@
 #define SETTING_FILE "setting.cfg"
 
 //类型定义区
-typedef unsigned char u8;
-typedef unsigned short u16;
-typedef unsigned int u32;
-typedef unsigned long long u64;
-
-typedef char s8;
-typedef short s16;
-typedef int s32;
-typedef long long s64;
 
 struct sensor_cfg {		//中文说明	寄存器地址
-	u16 zc_strength;	//追零强度	0x09
-	u16 zero_chase;		//追零范围	0x0a
-	u16 zerochase_enable;	//追零使能	0x0b
-	u16 graduation_val;	//分度值	0x0c
-	u16 midval_num;		//中值滤波值	0x0d
-	u16 sample_rate;	//采样速率	0x0e
-	u16 module_addr;	//模块地址	0x0f	不修改
-	u16 baudrate;		//波特率	0x10	不修改
-	u16 average_num;	//平均滤波值	0x11
-	u16 dynamic_trace;	//动态跟踪范围	0x12
-	u16 creep_trace;	//蠕变跟踪范围	0x13
-	u16 stable_weight;	//稳定重量开关	0x14
+	uint16_t zc_strength;	//追零强度	0x09
+	uint16_t zero_chase;		//追零范围	0x0a
+	uint16_t zerochase_enable;	//追零使能	0x0b
+	uint16_t graduation_val;	//分度值	0x0c
+	uint16_t midval_num;		//中值滤波值	0x0d
+	uint16_t sample_rate;	//采样速率	0x0e
+	uint16_t module_addr;	//模块地址	0x0f	不修改
+	uint16_t baudrate;		//波特率	0x10	不修改
+	uint16_t average_num;	//平均滤波值	0x11
+	uint16_t dynamic_trace;	//动态跟踪范围	0x12
+	uint16_t creep_trace;	//蠕变跟踪范围	0x13
+	uint16_t stable_weight;	//稳定重量开关	0x14
 } __attribute((aligned (2)));
 
 //函数声明区
 modbus_t *open_device();
-s32 read_setting(modbus_t *sensor);
-s32 write_setting(modbus_t *sensor);
+int32_t read_setting(modbus_t *sensor);
+int32_t write_setting(modbus_t *sensor);
 
 //函数区
-s32 main(s32 argc, const s8 *argv[])
+int main(int argc, char *argv[])
 {
-	u32 i;
+	uint32_t i;
 	modbus_t *sensor;
-	s8 command = 'n';
-	s32 weight;
+	int8_t command = 'n';
+	int32_t weight;
 
 	for (i = 1; i < argc; i++) {
 		if (strcmp(argv[i], "-r") == 0) {
@@ -111,13 +103,13 @@ s32 main(s32 argc, const s8 *argv[])
 }
 
 //从setting.cfg写设定到设备 返回值：0或-1
-s32 write_setting(modbus_t *sensor)
+int32_t write_setting(modbus_t *sensor)
 {
-	s32 fd;
-	u8 *filebuf;
+	int32_t fd;
+	uint8_t *filebuf;
 	size_t file_size;
-	u8 *linehead_p;
-	u16 reg_buf;
+	uint8_t *linehead_p;
+	uint16_t reg_buf;
 
 	modbus_write_register(sensor, 0x17, 1);//解除写保护
 	modbus_read_registers(sensor, 0x17, 1, &reg_buf);//检验是否解除成功
@@ -186,11 +178,11 @@ s32 write_setting(modbus_t *sensor)
 }
 
 //读取设定并输出到标准输出 返回值：0
-s32 read_setting(modbus_t *sensor)
+int32_t read_setting(modbus_t *sensor)
 {
 	struct sensor_cfg cfg;
 
-	modbus_read_registers(sensor, 0x09, sizeof(cfg)/2, (u16*)(&cfg));
+	modbus_read_registers(sensor, 0x09, sizeof(cfg)/2, (uint16_t*)(&cfg));
 
 	printf(
 	"zc_strength= %d\n"

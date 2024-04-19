@@ -1,28 +1,20 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <stdlib.h>
+#include <stdint.h>//包含uint8_t等
 #include <string.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <fcntl.h>
 
 //类型定义区
-typedef unsigned char u8;
-typedef unsigned short u16;
-typedef unsigned int u32;
-typedef unsigned long long u64;
-
-typedef char s8;
-typedef short s16;
-typedef int s32;
-typedef long long s64;
 
 #define RECORD_FILE "record.bin"
 #define NEW_FILE "recordnew.bin"
 
 struct save_unit {
-	u32 time_ms;
-	s32 weight;
+	uint32_t time_ms;
+	int32_t weight;
 };
 
 int main()

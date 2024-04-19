@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include <stdint.h>
 #include <modbus/modbus.h>
 #include <modbus/modbus-rtu.h>
 #include <errno.h>
@@ -12,28 +13,19 @@
 #define SERIAL_DEV "/dev/ttyUSB0"
 
 //类型定义区
-typedef unsigned char u8;
-typedef unsigned short u16;
-typedef unsigned int u32;
-typedef unsigned long long u64;
-
-typedef char s8;
-typedef short s16;
-typedef int s32;
-typedef long long s64;
 
 //函数声明区
 modbus_t *open_device();
 
 //函数区
-s32 main(s32 argc, const s8 *argv[])
+int main(int argc, char *argv[])
 {
 	modbus_t *sensor;
-	s32 weight;
-	s8 command = 'a';
-	u32 i;
-	u16 reg_buf;
-	u16 tab_reg[2];
+	int32_t weight;
+	uint8_t command = 'a';
+	uint32_t i;
+	uint16_t reg_buf;
+	uint16_t tab_reg[2];
 
 	for (i = 1; i < argc; i++) {
 		if (strcmp(argv[i], "-z") == 0) {
