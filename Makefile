@@ -1,9 +1,9 @@
-all:
-	gcc -o setting setting.c -lmodbus
-	gcc -o readval readval.c -lmodbus
-	gcc -o calibrate calibrate.c -lmodbus
-	gcc -o readbin readbin.c
-	gcc -o binprocess binprocess.c
+compile:
+	gcc -O2 setting.c 	-o setting 	-lmodbus
+	gcc -O2 readval.c 	-o readval 	-lmodbus
+	gcc -O2 calibrate.c 	-o calibrate 	-lmodbus
+	gcc -O2 readbin.c 	-o readbin
+	gcc -O2 binprocess.c 	-o binprocess
 
 clean:
 	rm -f setting

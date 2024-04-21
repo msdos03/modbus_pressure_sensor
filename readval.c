@@ -24,6 +24,7 @@
 int fd;
 modbus_t *sensor;
 struct timespec start_time;
+volatile int quit_flag = 0;
 
 //结构体定义区
 struct save_unit {
@@ -36,12 +37,10 @@ modbus_t *open_device();
 void record_once(int sig);
 
 //函数区
-void safe_exit(int signal_value)
+void safe_exit(int sig)
 {
-	printf("\nrecording program exit\n");
-	close(fd);
-	modbus_free(sensor);
-	exit(0);
+	quit_flag = 1;
+	return;
 }
 
 int main(int argc, char *argv[])
@@ -95,7 +94,10 @@ int main(int argc, char *argv[])
 	//重定向sigint信号到safe_exit处理函数
 	struct sigaction sigact = {
 		.sa_handler = safe_exit,
+		.sa_flags = 0,
 	};
+	sigemptyset(&sigact.sa_mask);
+
 	sigaction(SIGINT, &sigact, NULL);
 
 	//重定向sigusr1信号到record_once处理函数，来为设置定时器作准备
@@ -126,10 +128,16 @@ int main(int argc, char *argv[])
 
 void record_once(int sig)
 {
-	uint32_t i;
 	uint16_t tab_reg[2];
 	struct save_unit unit;
 	struct timespec spec;
+
+	if (quit_flag) {
+		printf("\nrecording program exit\n");
+		close(fd);
+		modbus_free(sensor);
+		exit(0);
+	}
 
 	modbus_read_registers(sensor, 0, 2, tab_reg);//获取重量
 	unit.weight = tab_reg[0] | (tab_reg[1] << 16);
@@ -141,7 +149,7 @@ void record_once(int sig)
 	write(fd, &unit, sizeof(struct save_unit));
 	//质量除以128舍弃余数，打印这个数量的'#'来可视化数据
 	if(unit.weight > 0) {
-		for(i = 0; i <= (unit.weight)>>7; i++) {
+		for(uint32_t i = 0; i <= (unit.weight)>>7; i++) {
 			putchar('#');
 		}
 	}
